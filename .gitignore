@@ -1,0 +1,36 @@
+# Dependências
+node_modules/
+
+# Arquivos gerados durante a compilação
+dist/
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+
+# Arquivos gerados pelo Prisma
+/src/generated/prisma
+.agents/
+.claude/
+
+# Banco de dados local
+*.db
+*.db-journal
+
+# Logs
+*.log
+
+# Arquivos temporários do TypeScript
+*.tsbuildinfo
+
+# Cobertura de testes
+coverage/
+
+# Configurações locais de editores
+.vscode/
+.idea/
+.windsurf/
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
