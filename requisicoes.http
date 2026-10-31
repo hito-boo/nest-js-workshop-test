@@ -1,7 +1,9 @@
 # Use a extensão REST Client do VS Code com o servidor em npm run start:dev.
 # Execute na ordem. O banco persiste os dados mesmo após reiniciar o servidor.
-# Execute "criarUsuario" antes das requisições que usam seu ID.
-# Para repetir a criação, remova o usuário anterior ou use outro e-mail.
+# Execute "criarUsuario" e confirme o retorno 201 antes das requisições que usam sua resposta.
+# A criação usa vitor@uem.br. Para repetir, conclua a sequência até remover o usuário.
+# Se a criação retornar 409, esse e-mail já existe: remova o cadastro antes de recomeçar.
+# Após remover o usuário, as requisições de busca/atualização dele retornarão 404.
 
 @url = http://localhost:3000
 # Escolha um ID que não exista no banco para os testes de erro.
@@ -20,6 +22,27 @@ Content-Type: application/json
 {
   "nome": "Vitor",
   "email": "vitor@uem.br"
+}
+
+### 2.1. Rejeitar domínio diferente de uem.br
+# Esperado: 400, message inclui "Utilize um e-mail da UEM (@uem.br)".
+POST {{url}}/usuarios
+Content-Type: application/json
+
+{
+  "nome": "Domínio inválido",
+  "email": "vitor@gmail.com"
+}
+
+### 2.2. Rejeitar e-mail duplicado
+# Execute após criarUsuario e antes de atualizar o e-mail ou remover o usuário.
+# Esperado: 409, message: "E-mail já cadastrado".
+POST {{url}}/usuarios
+Content-Type: application/json
+
+{
+  "nome": "Vitor duplicado",
+  "email": "{{criarUsuario.response.body.$.email}}"
 }
 
 ### 3. Filtrar por nome
@@ -45,7 +68,16 @@ PATCH {{url}}/usuarios/{{criarUsuario.response.body.$.id}}
 Content-Type: application/json
 
 {
-  "email": "vitor.atualizado@uem.br"
+  "email": "atualizado.{{criarUsuario.response.body.$.email}}"
+}
+
+### 7.1. Rejeitar domínio externo na atualização
+# Esperado: 400, message: "Utilize um e-mail da UEM (@uem.br)".
+PATCH {{url}}/usuarios/{{criarUsuario.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "email": "vitor@gmail.com"
 }
 
 ### 8. Atualizar id inexistente

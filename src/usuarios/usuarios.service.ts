@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CriarUsuarioDto } from './dto/criar-usuario.dto.js';
 import { AtualizarUsuarioDto } from './dto/atualizar-usuario.dto.js';
@@ -29,15 +30,40 @@ export class UsuariosService {
   }
 
   async criar(dados: CriarUsuarioDto) {
-    const novoUsuario = await this.prisma.usuario.create({data: dados});
-    return novoUsuario;
+    const email = dados.email.trim().toLowerCase();
+
+    if (!email.endsWith('@uem.br')) {
+      throw new BadRequestException('Utilize um e-mail da UEM (@uem.br)');
+    }
+
+    try {
+      return await this.prisma.usuario.create({ data: { ...dados, email } });
+    } catch (erro) {
+      if (
+        erro instanceof Prisma.PrismaClientKnownRequestError &&
+        erro.code === 'P2002'
+      ) {
+        throw new ConflictException('E-mail já cadastrado');
+      }
+      throw erro;
+    }
   }
 
   async atualizar(id: number, dados: AtualizarUsuarioDto) {
     await this.buscar(id);
+    const data = { ...dados };
+    if (typeof dados.email === 'string') {
+      const email = dados.email.trim().toLowerCase();
+
+      if (!email.endsWith('@uem.br')) {
+        throw new BadRequestException('Utilize um e-mail da UEM (@uem.br)');
+      }
+
+      data.email = email;
+    }
     return this.prisma.usuario.update({
       where: { id },
-      data: dados,
+      data,
     });
   }
 

@@ -1,12 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsuariosService } from './usuarios.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
 
 describe('UsuariosService', () => {
   let service: UsuariosService;
   const prisma = {
     usuario: {
+      create: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -55,5 +57,75 @@ describe('UsuariosService', () => {
       where: { id: 1 },
       data: { nome: atualizado.nome },
     });
+  });
+
+  it.each(['vitor@gmail.com', 'vitor@uem.br.exemplo.com', 'vitor@alunos.uem.br'])(
+    'rejeita o domínio de %s antes de acessar o banco', async (email) => {
+      const erro = await service.criar({ nome: 'Vitor', email })
+        .catch((error: unknown) => error);
+
+      expect(erro).toBeInstanceOf(BadRequestException);
+      expect((erro as BadRequestException).getStatus()).toBe(400);
+      expect((erro as BadRequestException).message)
+        .toBe('Utilize um e-mail da UEM (@uem.br)');
+      expect(prisma.usuario.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('normaliza o e-mail antes de cadastrar', async () => {
+    const dados = { nome: 'Vitor', email: '  Vitor@UEM.BR  ' };
+    const usuario = { id: 1, ...dados, email: 'vitor@uem.br', idade: null };
+    prisma.usuario.create.mockResolvedValue(usuario);
+
+    await expect(service.criar(dados)).resolves.toEqual(usuario);
+    expect(prisma.usuario.create).toHaveBeenCalledWith({
+      data: { ...dados, email: 'vitor@uem.br' },
+    });
+  });
+
+  it.each(['vitor@gmail.com', 'vitor@uem.br.exemplo.com', 'vitor@alunos.uem.br'])(
+    'rejeita o domínio de %s na atualização', async (email) => {
+      prisma.usuario.findUnique.mockResolvedValue({ id: 1 });
+
+      await expect(service.atualizar(1, { email }))
+        .rejects.toThrow('Utilize um e-mail da UEM (@uem.br)');
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('normaliza o e-mail antes de atualizar', async () => {
+    prisma.usuario.findUnique.mockResolvedValue({ id: 1 });
+
+    await service.atualizar(1, { email: '  Vitor@UEM.BR  ' });
+
+    expect(prisma.usuario.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { email: 'vitor@uem.br' },
+    });
+  });
+
+  it('converte e-mail duplicado em conflito HTTP 409', async () => {
+    prisma.usuario.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed', { code: 'P2002', clientVersion: '7.10.0' },
+    ));
+
+    const erro = await service.criar({ nome: 'Vitor', email: 'vitor@uem.br' })
+      .catch((error: unknown) => error);
+
+    expect(erro).toBeInstanceOf(ConflictException);
+    expect((erro as ConflictException).getStatus()).toBe(409);
+    expect((erro as ConflictException).message).toBe('E-mail já cadastrado');
+  });
+
+  it.each([
+    new Error('Falha inesperada'),
+    new Prisma.PrismaClientKnownRequestError(
+      'Database unavailable', { code: 'P2024', clientVersion: '7.10.0' },
+    ),
+  ])('relança os demais erros sem modificá-los: %s', async (erro) => {
+    prisma.usuario.create.mockRejectedValue(erro);
+
+    await expect(service.criar({ nome: 'Vitor', email: 'vitor@uem.br' }))
+      .rejects.toBe(erro);
   });
 });
