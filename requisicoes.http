@@ -1,32 +1,19 @@
-# Requisições para testar a solução. Precisa da extensão REST Client no VS Code.
-# Suba o servidor com "npm run start:dev" e clique em "Send Request" acima de cada requisição.
-# Os resultados esperados partem do servidor recém-iniciado, com os 5 usuários
-# da lista. Rode as requisições na ordem. Para recomeçar, reinicie o servidor.
+# Use a extensão REST Client do VS Code com o servidor em npm run start:dev.
+# Execute na ordem. O banco persiste os dados mesmo após reiniciar o servidor.
+# Execute "criarUsuario" antes das requisições que usam seu ID.
+# Para repetir a criação, remova o usuário anterior ou use outro e-mail.
 
 @url = http://localhost:3000
+# Escolha um ID que não exista no banco para os testes de erro.
+@idInexistente = 999999
 
 ### 1. Listar todos
-# Esperado: 200, os 5 usuários
+# Esperado: 200, lista dos usuários atualmente salvos (pode estar vazia).
 GET {{url}}/usuarios
 
-### 2. Filtrar por nome
-# Esperado: 200, só Lucas Fratus
-GET {{url}}/usuarios?nome=Lucas
-
-### 3. O filtro diferencia maiúsculas de minúsculas
-# Esperado: 200, []
-GET {{url}}/usuarios?nome=lucas
-
-### 4. Buscar por id
-# Esperado: 200, Lucas Fratus
-GET {{url}}/usuarios/3
-
-### 5. Buscar id inexistente
-# Esperado: 200, sem corpo (no Dia 3 vira 404)
-GET {{url}}/usuarios/99
-
-### 6. Criar
-# Esperado: 201, Vitor com id 6
+### 2. Criar um usuário para os testes seguintes
+# Esperado: 201, usuário com id gerado pelo banco.
+# @name criarUsuario
 POST {{url}}/usuarios
 Content-Type: application/json
 
@@ -35,42 +22,53 @@ Content-Type: application/json
   "email": "vitor@uem.br"
 }
 
+### 3. Filtrar por nome
+# Esperado: 200, usuários cujo nome contém Vitor.
+GET {{url}}/usuarios?nome=Vitor
+
+### 4. Filtrar por nome em minúsculas
+# Esperado: 200, usuários correspondentes; o SQLite não diferencia
+# maiúsculas de minúsculas ASCII nesse filtro.
+GET {{url}}/usuarios?nome=vitor
+
+### 5. Buscar o usuário criado
+# Esperado: 200, usuário retornado pela criação.
+GET {{url}}/usuarios/{{criarUsuario.response.body.$.id}}
+
+### 6. Buscar id inexistente
+# Esperado: 404, message: "Usuário não encontrado".
+GET {{url}}/usuarios/{{idInexistente}}
+
 ### 7. Atualizar só o e-mail
-# Esperado: 200, Ana Paula com o e-mail novo e o nome mantido
-PATCH {{url}}/usuarios/1
+# Esperado: 200, usuário com e-mail atualizado e nome mantido.
+PATCH {{url}}/usuarios/{{criarUsuario.response.body.$.id}}
 Content-Type: application/json
 
 {
-  "email": "anapaula@uem.br"
+  "email": "vitor.atualizado@uem.br"
 }
 
 ### 8. Atualizar id inexistente
-# Esperado: 200, sem corpo
-PATCH {{url}}/usuarios/99
+# Esperado: 404, message: "Usuário não encontrado".
+PATCH {{url}}/usuarios/{{idInexistente}}
 Content-Type: application/json
 
 {
-  "nome": "X"
+  "nome": "Usuário inexistente"
 }
 
-### 9. Remover
-# Esperado: 204, sem corpo
-DELETE {{url}}/usuarios/2
+### 9. Remover o usuário criado
+# Esperado: 204, sem corpo.
+DELETE {{url}}/usuarios/{{criarUsuario.response.body.$.id}}
 
-### 10. Listar depois da remoção
-# Esperado: 200, sem o Josh Dun (id 2)
-GET {{url}}/usuarios
+### 10. Buscar o usuário removido
+# Esperado: 404, message: "Usuário não encontrado".
+GET {{url}}/usuarios/{{criarUsuario.response.body.$.id}}
 
-### 11. Criar de novo e comparar o id gerado
-# Esperado: 201, Carlos com id 7 (o proximoId só aumenta)
-POST {{url}}/usuarios
-Content-Type: application/json
-
-{
-  "nome": "Carlos",
-  "email": "carlos@uem.br"
-}
+### 11. Remover id inexistente
+# Esperado: 404, message: "Usuário não encontrado".
+DELETE {{url}}/usuarios/{{idInexistente}}
 
 ### 12. Listar no final
-# Esperado: 200, 6 usuários
+# Esperado: 200, lista sem o usuário removido; demais registros preservados.
 GET {{url}}/usuarios

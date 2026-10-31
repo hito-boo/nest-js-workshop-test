@@ -1,20 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { Usuario } from './usuario.interface.js';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CriarUsuarioDto } from './dto/criar-usuario.dto.js';
 import { AtualizarUsuarioDto } from './dto/atualizar-usuario.dto.js';
 
 @Injectable()
 export class UsuariosService {
-  private usuarios: Usuario[] = [
-    { id: 1, nome: 'Ana Paula Crippa', email: 'ana@uem.br' },
-    { id: 2, nome: 'Josh Dun', email: 'josh@uem.br' },
-    { id: 3, nome: 'Lucas Fratus', email: 'lucas@uem.br' },
-    { id: 4, nome: 'Oliver Sykes', email: 'oliver@uem.br' },
-    { id: 5, nome: 'Tyler Joseph', email: 'tyler@uem.br' },
-  ];
-  private proximoId = this.usuarios.length + 1;
-
   constructor(private prisma: PrismaService) {}
 
   async listar(nome?: string) {
@@ -32,6 +22,9 @@ export class UsuariosService {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id }
     });
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
     return usuario;
   }
 
@@ -41,18 +34,15 @@ export class UsuariosService {
   }
 
   async atualizar(id: number, dados: AtualizarUsuarioDto) {
-    const usuario = await this.buscar(id);
-    if (!usuario) return;
-    await this.prisma.usuario.update({
+    await this.buscar(id);
+    return this.prisma.usuario.update({
       where: { id },
       data: dados,
     });
-    return this.buscar(id);
   }
 
   async remover(id: number) {
-    const usuario = await this.buscar(id);
-    if (!usuario) return;
+    await this.buscar(id);
     await this.prisma.usuario.delete({
       where: {id},
     });
